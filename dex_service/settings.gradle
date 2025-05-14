@@ -1,0 +1,4 @@
+rootProject.name = 'dex_service'
+
+includeBuild 'aggregator'
+includeBuild 'apigateway'

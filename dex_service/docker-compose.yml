@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  dex-dedust:
+    build:
+      context: ./dedust
+    ports:
+      - "8000:8000"
+    environment:
+      - SERVICE_PORT=8000
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis-db
+      - REDIS_PORT=6379
+      - CACHE_SEC=0.1
+    depends_on:
+      - consul
+      - redis-db
+
+  dex-stonfi:
+    build:
+      context: ./stonfi
+#    ports:
+#      - "8100:8100"
+    environment:
+      - SERVICE_PORT=8100
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis-db
+      - REDIS_PORT=6379
+      - CACHE_SEC=0.1
+    deploy:
+      mode: replicated
+      replicas: 2
+    depends_on:
+      - consul
+      - redis-db
+
+  aggregator:
+    build:
+      context: ./aggregator
+#    ports:
+#      - "8080:8080"
+    environment:
+      - SPRING_CLOUD_CONSUL_HOST=consul
+      - SPRING_CLOUD_CONSUL_PORT=8500
+      - SPRING_REDIS_HOST=redis-db
+      - SPRING_REDIS_PORT=6379
+    deploy:
+      mode: replicated
+      replicas: 2
+    depends_on:
+      - consul
+      - redis-db
+
+  apigateway:
+    build:
+      context: ./apigateway
+    ports:
+      - "80:80"
+    environment:
+      - SPRING_CLOUD_CONSUL_HOST=consul
+      - SPRING_CLOUD_CONSUL_PORT=8500
+    depends_on:
+      - consul
+      - redis-db
+      - aggregator
+      - dex-dedust
+
+  consul:
+    image: hashicorp/consul
+    ports:
+      - "8500:8500"      # Web UI и HTTP API
+      - "8600:8600/udp"  # DNS
+    command: agent -server -bootstrap -ui -client="0.0.0.0"
+  # stand-alone
+  # docker run  -p 8500:8500 -p 8600:8600/udp --name=consul  hashicorp/consul agent -server -bootstrap -ui -client="0.0.0.0"
+
+  redis-db:
+    image: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 3s
+      timeout: 3s
+      retries: 5
